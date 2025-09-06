@@ -1,0 +1,50 @@
+#!/bin/bash
+# install-pinctrl-meshtastic.sh
+# Configures Raspberry Pi pinctrl states and Meshtastic GPS without reboot.
+
+set -e
+
+SCRIPT_PATH="/usr/local/bin/pinctrl-setup.sh"
+SERVICE_PATH="/etc/systemd/system/pinctrl-setup.service"
+
+echo "=== Step 1: Creating pinctrl setup script ==="
+sudo bash -c "cat > $SCRIPT_PATH" <<'EOF'
+#!/bin/bash
+# Configure Raspberry Pi pinctrl states
+pinctrl set 14 ip
+pinctrl set 15 ip
+pinctrl set 32 a3
+pinctrl set 33 a3
+EOF
+
+sudo chmod +x $SCRIPT_PATH
+echo "Pinctrl setup script created at $SCRIPT_PATH"
+
+echo "=== Step 2: Creating systemd service ==="
+sudo bash -c "cat > $SERVICE_PATH" <<EOF
+[Unit]
+Description=Set pinctrl pin states at boot
+After=multi-user.target
+
+[Service]
+Type=oneshot
+ExecStart=$SCRIPT_PATH
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+sudo systemctl daemon-reload
+sudo systemctl enable pinctrl-setup.service
+echo "Systemd service created and enabled."
+
+echo "=== Step 3: Applying pinctrl settings now ==="
+sudo $SCRIPT_PATH
+
+echo "=== Step 4: Configuring Meshtastic GPS ==="
+meshtastic --set position.gps_mode ENABLED
+meshtastic --set position.rx_gpio 33
+meshtastic --set position.tx_gpio 32
+
+echo "=== Complete: pinctrl + Meshtastic are configured and will persist on boot ==="
